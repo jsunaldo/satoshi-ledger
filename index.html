@@ -3554,6 +3554,14 @@ const ACQ_VIEWS={
   gifts:{types:["gift"], def:"gift", stats:"giftsStats", q:"giftsQ", sort:"giftsSort", table:"giftsTable",
     empty:["🎁","No gifts received","BTC someone gave you — basis is the giver's cost, or that day's price."]}
 };
+/* the editor names what you're actually adding — a reward is not a "buy" */
+const ACQ_NOUN={buy:"buy",unknown:"buy",gift:"gift received",reward:"reward",income:"income"};
+function txLabels(){
+  const sel=document.getElementById("f_acq"); if(!sel) return;
+  const noun=ACQ_NOUN[sel.value]||"buy", h=document.getElementById("txTitle"), b=document.getElementById("txSave");
+  if(h) h.textContent=`${h.dataset.verb} ${noun}`;
+  if(b && !/^Save/.test(b.textContent)) b.textContent=`${h&&h.dataset.verb==="Convert to"?"Convert to":"Add"} ${noun}`;
+}
 function addAcq(cat){
   const acq=ACQ_VIEWS[cat].def;
   openTx("buy",null,{date:today(),btc:"",pricePerBtc:"",fee:"",walletId:"",exchange:"",notes:"",acqType:acq});
@@ -4450,11 +4458,11 @@ function openTx(type,id,prefill){ if(editBlock())return;
   const t = rec||prefill||{date:today(),btc:"",pricePerBtc:"",fee:"",walletId:"",exchange:"",notes:"",reported:""};
   const mown= (isBuy&&id)? mirrorOwner(id) : null; // a lot carried in by a cross-stack move
   modal.innerHTML=`
-    <div class="modal-head"><h3>${rec?"Edit":CONVERT?"Convert to":"Add"} ${isBuy?"buy":"sell"}</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+    <div class="modal-head"><h3 id="txTitle" data-verb="${rec?"Edit":CONVERT?"Convert to":"Add"}">${rec?"Edit":CONVERT?"Convert to":"Add"} ${isBuy?ACQ_NOUN[t.acqType||"buy"]||"buy":"sell"}</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
     <div class="modal-body">
       ${mown?`<div style="border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:8px;padding:9px 12px;margin-bottom:14px;font-size:12.5px;color:var(--text-2);line-height:1.5">⇄ This lot arrived from a <b>cross-stack move</b> out of “${esc(mown.prof.name)}” on ${dateFmt(mown.send.date)}. Its amount, date and basis mirror that move — change the move itself in “${esc(mown.prof.name)}” to keep both stacks in step. Wallet and notes are safe to edit here.</div>`:""}
       ${rec?convertSel(isBuy?"buy":"sell",id):""}
-      ${isBuy?`<div class="field"><label>How acquired</label><select id="f_acq">
+      ${isBuy?`<div class="field"><label>How acquired</label><select id="f_acq" onchange="txLabels()">
         <option value="buy" ${(t.acqType||"buy")==="buy"?"selected":""}>Purchase — I paid for it</option>
         <option value="unknown" ${t.acqType==="unknown"?"selected":""}>Purchase — records lost, basis unknown</option>
         <option value="gift" ${t.acqType==="gift"?"selected":""}>Gift received — someone gave it to me</option>
@@ -4488,7 +4496,7 @@ function openTx(type,id,prefill){ if(editBlock())return;
     <div class="modal-foot">
       ${rec?`<button class="btn danger ghost" onclick="delTx('${type}','${id}')">Delete</button>`:""}
       <button class="btn ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn primary" onclick="saveTx('${type}','${id||""}')">${rec?"Save changes":"Add "+type}</button>
+      <button class="btn primary" id="txSave" onclick="saveTx('${type}','${id||""}')">${rec?"Save changes":"Add "+(isBuy?ACQ_NOUN[t.acqType||"buy"]||"buy":"sell")}</button>
     </div>`;
   overlay.classList.add("open");
 
@@ -4640,7 +4648,7 @@ function openSend(id,prefill){ if(editBlock())return;
   const t=s||prefill||{date:today(),btc:"",destination:"",description:"",walletId:"",hash:"",notes:"",ownership:"others"};
   const own= t.ownership==="xstack" ? "stack" : (t.ownership||"others");
   modal.innerHTML=`
-    <div class="modal-head"><h3>${s&&s.ownership==="xstack"?"Edit cross-stack transfer":`${s?"Edit":CONVERT?"Convert to":"Add"} send`}</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+    <div class="modal-head"><h3 id="sendTitle" data-verb="${s?"Edit":CONVERT?"Convert to":"Add"}">${s&&s.ownership==="xstack"?"Edit cross-stack transfer":`${s?"Edit":CONVERT?"Convert to":"Add"} send`}</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
     <div class="modal-body">
       ${s?convertSel("send",id):""}
       <div class="field"><label>Who received it?</label><select id="s_own">
@@ -4674,12 +4682,16 @@ function openSend(id,prefill){ if(editBlock())return;
     <div class="modal-foot">
       ${s?`<button class="btn danger ghost" onclick="delSend('${id}')">Delete</button>`:""}
       <button class="btn ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn primary" onclick="saveSend('${id||""}')">${s?"Save changes":"Add send"}</button>
+      <button class="btn primary" id="sendSave" onclick="saveSend('${id||""}')">${s?"Save changes":"Add send"}</button>
     </div>`;
   overlay.classList.add("open");
   const ownSel=document.getElementById("s_own"), ownHint=document.getElementById("s_ownHint");
   const applyOwn=()=>{
     const v=ownSel.value;
+    { const noun={others:"gift sent",spent:"spend",self:"transfer",stack:"cross-stack transfer"}[v]||"send";
+      const h=document.getElementById("sendTitle"), b=document.getElementById("sendSave");
+      if(h) h.textContent=`${h.dataset.verb} ${noun}`;
+      if(b && !/^Save/.test(b.textContent)) b.textContent=`${h&&h.dataset.verb==="Convert to"?"Convert to":"Add"} ${noun}`; }
     document.getElementById("s_fmvWrap").style.display= v==="spent"? "":"none";
     document.getElementById("s_toWWrap").style.display= v==="self"? "":"none";
     document.getElementById("s_priceWrap").style.display= v==="others"? "":"none";
