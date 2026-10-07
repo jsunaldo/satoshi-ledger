@@ -1072,7 +1072,7 @@ function showLoadScreen(){
     <p style="color:var(--text-3);font-size:12.5px;margin-top:14px">Folder empty? Open Satoshi Ledger on your Mac once — it saves the copy there every time your ledger changes.</p>`));
 }
 const GENKEY="satoshiSyncGen";
-const SYNC={ token:null, gen:(parseInt(localStorage.getItem(GENKEY),10)||0), warned:false };
+const SYNC={ token:null, gen:(parseInt(localStorage.getItem(GENKEY),10)||0), warned:false, failed:false };
 function isEncBlob(blob){ try{ return JSON.parse(blob).enc===1; }catch(e){ return false; } }
 async function loadSyncToken(){ // only this Mac's own browser is given the write token
   try{ const r=await fetch("/synctoken"); if(r.ok) SYNC.token=(await r.text()).trim(); }catch(e){}
@@ -1088,8 +1088,14 @@ function pushVault(blob){ // editor → server, best-effort. ENCRYPTED ONLY — 
       if(!SYNC.warned){ SYNC.warned=true;
         if(confirm("Another device has newer data on your sync server, so this Mac's changes aren't reaching your phone.\n\nPublish THIS Mac's data to your devices instead (replaces what's on the server)?\n\nOnly do this if this Mac has the ledger you want to keep.")) forcePublishSync();
       } } })
-    .catch(()=>{ SYNC.gen=prev; try{localStorage.setItem(GENKEY,String(prev));}catch(e){} }); // couldn't reach: don't advance
+    .then(()=>{ if(SYNC.failed){ SYNC.failed=false; toast("✓ Your phone's copy is updating again",3500); } })
+    .catch(()=>{ SYNC.gen=prev; try{localStorage.setItem(GENKEY,String(prev));}catch(e){} // couldn't reach: don't advance
+      // say so instead of failing silently (2026-10-07: the phone copy quietly went stale)
+      if(!SYNC.failed){ SYNC.failed=true;
+        toast("Your phone's copy isn't updating: the BTC Tracker app isn't running. Everything is saved on this Mac. Open BTC Tracker.app and keep it in the Dock; this tab will catch the phone up as soon as you come back to it.",12000); } });
 }
+// coming back to the tab after a failed publish: try again (event-driven, never on a timer)
+window.addEventListener("focus",()=>{ try{ if(SYNC.failed && !REMOTE) pushCurrent(); }catch(e){} });
 async function forcePublishSync(){ // user says THIS Mac is authoritative — adopt the server's
   // generation so the next push wins, then publish the current vault
   try{ const r=await fetch("/vault",{cache:"no-store"}); const g=parseInt(r.headers.get("X-Vault-Gen"),10); if(g>=0){ SYNC.gen=g; try{localStorage.setItem(GENKEY,String(g));}catch(e){} } }catch(e){}
